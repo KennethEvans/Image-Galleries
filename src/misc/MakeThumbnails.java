@@ -32,7 +32,9 @@ public class MakeThumbnails
     private static final String[] IMAGE_FILE_EXTENSIONS = new String[] {"jpg",
         "jpeg", "png", "gif"};
     /** Directory from which the script is being run. */
-    private static final String DEFAULT_PARENT_DIR = "C:/Scratch/AAA/Image Gallery Test/Test Site/gallery";
+    private static final String DEFAULT_PARENT_DIR = "C:/Users/evans/Documents/Web Pages/kenevans.net/Digital Art";
+    // private static final String DEFAULT_PARENT_DIR = "C:/Scratch/AAA/Image
+    // Gallery Test/Test Site/gallery";
     /** Directory where the images are. */
     private static final String DEFAULT_DIR = DEFAULT_PARENT_DIR + "/images";
     private static final int RESCALE_SIZE = 200;

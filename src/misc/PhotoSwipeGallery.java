@@ -8,13 +8,18 @@ import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionListener;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import javax.imageio.ImageIO;
@@ -34,12 +39,16 @@ import javax.swing.UIManager;
 
 import org.imgscalr.Scalr;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
 /*
  * Created on Jan 2, 2019
  * By Kenneth Evans, Jr.
  */
 
 public class PhotoSwipeGallery extends JFrame
+    implements MouseListener, MouseMotionListener
 {
     private static final long serialVersionUID = 1L;
     public static final String LS = System.getProperty("line.separator");
@@ -50,22 +59,27 @@ public class PhotoSwipeGallery extends JFrame
         + DEFAULT_RESCALE_EXT;
     private static final String[] IMAGE_FILE_EXTENSIONS = new String[] {"jpg",
         "jpeg", "png", "gif"};
-    /** Directory from which the script is being run. */
-    private static final String DEFAULT_PARENT_DIR = "C:/Users/evans/Documents/Web Pages/kenevans.net/Digital Art";
-    /*
-     * private static final String DEFAULT_PARENT_DIR =
-     * "C:/Scratch/AAA/Image Gallery Test/Test Site/gallery";
-     */
-    /** Directory where the images are. */
-    private static final String DEFAULT_DIR = DEFAULT_PARENT_DIR + "/images";
     private static final int RESCALE_SIZE = 200;
     private static double THUMBNAIL_RESIZE_FACTOR = .4;
+
+    private static boolean USE_WEB_SITE = true;
+
+    /** Directory from which the script is being run. */
+    private static final String DEFAULT_PARENT_DIR = USE_WEB_SITE
+        ? "C:/Users/evans/Documents/Web Pages/kenevans.net/Digital Art"
+        : "C:/Scratch/AAA/Image Gallery Test/Test Site/gallery";
+
+    /** Directory where the images are. */
+    private static final String DEFAULT_DIR = DEFAULT_PARENT_DIR + "/images";
 
     private static final int WIDTH = 400;
     private static final int HEIGHT = 200;
     private static final int NCOLS = 4;
     private static final String TITLE = "PhotoSwipe Gallery";
     private static List<Thumbnail> thumbnails = new ArrayList<Thumbnail>();
+
+    private boolean mouseMoving = false;
+    private boolean mouseDown = false;
 
     private JPanel mainPanel;
     private JMenuBar menuBar;
@@ -96,7 +110,7 @@ public class PhotoSwipeGallery extends JFrame
         gbc.anchor = GridBagConstraints.NORTH;
         mainPanel.add(textField);
 
-        JScrollPane scrollPane = new JScrollPane(mainPanel);
+        scrollPane = new JScrollPane(mainPanel);
         scrollPane.setPreferredSize(new Dimension(WIDTH, HEIGHT));
         this.add(scrollPane, BorderLayout.CENTER);
 
@@ -131,6 +145,16 @@ public class PhotoSwipeGallery extends JFrame
         //
         // JSeparator separator = new JSeparator();
         // menu.add(separator);
+
+        // Write JSON
+        menuItem = new JMenuItem();
+        menuItem.setText("Write JSON");
+        menuItem.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ae) {
+                writeJson();
+            }
+        });
+        menu.add(menuItem);
 
         // File Exit
         menuItem = new JMenuItem();
@@ -171,6 +195,81 @@ public class PhotoSwipeGallery extends JFrame
         // }
         // });
         // menu.add(menuItem);
+    }
+
+    @Override
+    public void mouseClicked(MouseEvent ev) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public void mousePressed(MouseEvent ev) {
+        // System.out.println("mousePressed: mouseDown=" + mouseDown
+        // + " mouseMoving=" + mouseMoving);
+        Component component = ev.getComponent();
+        if(component instanceof DataButton) {
+            mouseDown = true;
+        } else {
+            mouseDown = false;
+            mouseMoving = false;
+        }
+    }
+
+    @Override
+    public void mouseReleased(MouseEvent ev) {
+        // System.out.println("mouseReleased: mouseDown=" + mouseDown
+        // + " mouseMoving=" + mouseMoving);
+        // The ev.getComponent() is the originating component
+        Component component = ev.getComponent();
+        if(mouseMoving && component instanceof DataButton) {
+            DataButton button = (DataButton)component;
+            // Find the component where released
+            Component upComponent = null;
+            Component[] components = mainPanel.getComponents();
+            Point point = new Point(SwingUtilities.convertPoint(component,
+                ev.getPoint(), mainPanel));
+            for(Component component1 : components) {
+                if(component1.getBounds().contains(point)) {
+                    upComponent = component1;
+                    break;
+                }
+            }
+            if(upComponent != null && upComponent instanceof DataButton) {
+                DataButton upButton = (DataButton)upComponent;
+                reconfigure(button.index, upButton.index);
+            }
+            mouseDown = false;
+            mouseMoving = false;
+        }
+
+    }
+
+    @Override
+    public void mouseEntered(MouseEvent ev) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public void mouseExited(MouseEvent ev) {
+        // TODO Auto-generated method stub
+
+    }
+
+    @Override
+    public void mouseDragged(MouseEvent ev) {
+        // System.out.println("mouseDragged: mouseDown=" + mouseDown
+        // + " mouseMoving=" + mouseMoving);
+        if(mouseDown) mouseMoving = true;
+    }
+
+    @Override
+    public void mouseMoved(MouseEvent ev) {
+        // System.out.println(
+        // "mouseMoved: mouseDown=" + mouseDown + " mouseMoving=" +
+        // mouseMoving);
+        // if(mouseDown) mouseMoving = true;
     }
 
     /**
@@ -221,6 +320,17 @@ public class PhotoSwipeGallery extends JFrame
         }
     }
 
+    private static void writeJson() {
+        List<Item> items = new ArrayList<Item>();
+        for(Thumbnail thumbnail : thumbnails) {
+            items.add(thumbnail.item);
+        }
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        System.out.println();
+        System.out.println("JSON items for PhotoSwipe:");
+        System.out.println("var items =" + LS + gson.toJson(items));
+    }
+
     private static void makeThumbnails() {
         thumbnails.clear();
         File dir = new File(DEFAULT_DIR);
@@ -231,6 +341,8 @@ public class PhotoSwipeGallery extends JFrame
         int index = 0;
         String imageType = "jpg";
         boolean skip = true;
+        Thumbnail thumbnail;
+        Item item;
         for(File file : files) {
             skip = true;
             if(file.isDirectory()) continue;
@@ -264,7 +376,15 @@ public class PhotoSwipeGallery extends JFrame
                 if(fileOut.exists()) {
                     if(DO_NOT_OVERWRITE) {
                         System.out.println("   Already exists, not converted");
-                        thumbnails.add(new Thumbnail(index, fileOut));
+                        thumbnail = new Thumbnail(index, fileOut);
+                        item = new Item();
+                        item.src = new File(DEFAULT_PARENT_DIR).toURI()
+                            .relativize(file.toURI()).getPath();
+                        item.h = bi.getHeight();
+                        item.w = bi.getWidth();
+                        item.title = fileNameNoExt;
+                        thumbnail.item = item;
+                        thumbnails.add(thumbnail);
                         continue;
                     }
                     int res = JOptionPane.showConfirmDialog(null,
@@ -274,7 +394,15 @@ public class PhotoSwipeGallery extends JFrame
                     if(res != JOptionPane.OK_OPTION) continue;
                 }
                 ImageIO.write(biScaled, imageType, fileOut);
-                thumbnails.add(new Thumbnail(index, fileOut));
+                thumbnail = new Thumbnail(index, fileOut);
+                item = new Item();
+                item.src = new File(DEFAULT_PARENT_DIR).toURI()
+                    .relativize(file.toURI()).getPath();
+                item.h = bi.getHeight();
+                item.w = bi.getWidth();
+                item.title = fileNameNoExt;
+                thumbnail.item = item;
+                thumbnails.add(thumbnail);
                 System.out.println("   Converted to " + fileOut.getPath());
                 System.out.println(
                     "     " + bi.getWidth() + "x" + bi.getHeight() + "->"
@@ -286,12 +414,38 @@ public class PhotoSwipeGallery extends JFrame
         }
     }
 
+    private void reconfigure(int index1, int index2) {
+        // Utils.infoMsg("Dragged from " + index1 + " to " + index2);
+        // System.out.println("Before:");
+        // for(Thumbnail thumbnail : thumbnails) {
+        // System.out.println(" " + thumbnail.name);
+        // }
+        if(index1 <= index2) {
+            Collections.rotate(thumbnails.subList(index1, index2 + 1), -1);
+        } else {
+            Collections.rotate(thumbnails.subList(index2, index1 + 1), 1);
+        }
+        // System.out.println("After:");
+        // for(Thumbnail thumbnail : thumbnails) {
+        // System.out
+        // .println(" " + thumbnail.name + " (" + thumbnail.index + ")");
+        // }
+        // Reset the indices
+        int i = 0;
+        for(Thumbnail thumbnail : thumbnails) {
+            thumbnail.index = i++;
+        }
+        // System.out.println("After resetting the indices:");
+        // for(Thumbnail thumbnail : thumbnails) {
+        // System.out
+        // .println(" " + thumbnail.name + " (" + thumbnail.index + ")");
+        // }
+        loadThumbnails();
+    }
+
     private void loadThumbnails() {
         // Clear the JPanel
-        Component[] components = mainPanel.getComponents();
-        for(Component component : components) {
-            mainPanel.remove(component);
-        }
+        mainPanel.removeAll();
 
         GridBagConstraints gbcDefault = new GridBagConstraints();
         gbcDefault.insets = new Insets(2, 2, 2, 2);
@@ -301,18 +455,26 @@ public class PhotoSwipeGallery extends JFrame
         GridBagConstraints gbc = null;
 
         // Add the current buttons
-        JButton button;
+        DataButton button;
         int row, col;
+        int i = 0;
         for(Thumbnail thumbnail : thumbnails) {
             row = thumbnail.index / NCOLS;
             col = thumbnail.index % NCOLS;
-            button = new JButton(thumbnail.icon);
+            button = new DataButton(thumbnail.icon, i);
             button.setMargin(new Insets(0, 0, 0, 0));
+            button.addMouseListener(this);
+            button.addMouseMotionListener(this);
+            gbc = (GridBagConstraints)gbcDefault.clone();
             gbc = (GridBagConstraints)gbcDefault.clone();
             gbc.gridx = col;
             gbc.gridy = row;
             mainPanel.add(button, gbc);
+            i++;
         }
+        // Seems to minimum necessary
+        mainPanel.revalidate();
+        mainPanel.repaint();
     }
 
     /**
@@ -341,15 +503,35 @@ public class PhotoSwipeGallery extends JFrame
         });
     }
 
+    private static class Item
+    {
+        String src;
+        int w;
+        int h;
+        String title;
+    }
+
+    private class DataButton extends JButton
+    {
+        private static final long serialVersionUID = 1L;
+        private int index;
+
+        DataButton(Icon icon, int index) {
+            super(icon);
+            this.index = index;
+        }
+    }
+
     private static class Thumbnail
     {
         private int index;
         private String name;
         private Icon icon;
+        private Item item;
 
         public Thumbnail(int index, File file) {
             this.index = index;
-            String name = file.getName();
+            this.name = file.getName();
             String ext = Utils.getExtension(file);
             if(ext != null) {
                 name = file.getName().substring(0,
@@ -389,5 +571,4 @@ public class PhotoSwipeGallery extends JFrame
             return biScaled;
         }
     }
-
 }

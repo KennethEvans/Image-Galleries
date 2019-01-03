@@ -16,16 +16,24 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.image.BufferedImage;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 import javax.imageio.ImageIO;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
@@ -33,9 +41,11 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 import org.imgscalr.Scalr;
 
@@ -62,7 +72,7 @@ public class PhotoSwipeGallery extends JFrame
     private static final int RESCALE_SIZE = 200;
     private static double THUMBNAIL_RESIZE_FACTOR = .4;
 
-    private static boolean USE_WEB_SITE = true;
+    private static boolean USE_WEB_SITE = false;
 
     /** Directory from which the script is being run. */
     private static final String DEFAULT_PARENT_DIR = USE_WEB_SITE
@@ -77,6 +87,9 @@ public class PhotoSwipeGallery extends JFrame
     private static final int NCOLS = 4;
     private static final String TITLE = "PhotoSwipe Gallery";
     private static List<Thumbnail> thumbnails = new ArrayList<Thumbnail>();
+    private static String currentDir = DEFAULT_PARENT_DIR;
+    public static final SimpleDateFormat fileFormatter = new SimpleDateFormat(
+        "yyyy-MM-dd-hh-mm");
 
     private boolean mouseMoving = false;
     private boolean mouseDown = false;
@@ -84,6 +97,8 @@ public class PhotoSwipeGallery extends JFrame
     private JPanel mainPanel;
     private JMenuBar menuBar;
     private JScrollPane scrollPane;
+
+    private Item[] savedItems;
 
     /**
      * PhotoSwipeGallery constructor.
@@ -146,15 +161,38 @@ public class PhotoSwipeGallery extends JFrame
         // JSeparator separator = new JSeparator();
         // menu.add(separator);
 
+        // Reset Order
+        menuItem = new JMenuItem();
+        menuItem.setText("Reset Order");
+        menuItem.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ae) {
+                reorder();
+            }
+        });
+        menu.add(menuItem);
+
         // Write JSON
         menuItem = new JMenuItem();
-        menuItem.setText("Write JSON");
+        menuItem.setText("Write JSON File...");
         menuItem.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ae) {
                 writeJson();
             }
         });
         menu.add(menuItem);
+
+        // Set items from JSON
+        menuItem = new JMenuItem();
+        menuItem.setText("Reset Items from JSON File...");
+        menuItem.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ae) {
+                resetFromJson();
+            }
+        });
+        menu.add(menuItem);
+
+        JSeparator separator = new JSeparator();
+        menu.add(separator);
 
         // File Exit
         menuItem = new JMenuItem();
@@ -320,19 +358,166 @@ public class PhotoSwipeGallery extends JFrame
         }
     }
 
-    private static void writeJson() {
+    private static String getJsonForItems() {
         List<Item> items = new ArrayList<Item>();
         for(Thumbnail thumbnail : thumbnails) {
             items.add(thumbnail.item);
         }
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
-        System.out.println();
-        System.out.println("JSON items for PhotoSwipe:");
-        System.out.println("var items =" + LS + gson.toJson(items));
+        return gson.toJson(items);
     }
 
-    private static void makeThumbnails() {
+    private static Item[] getItemsFromJson(String json) {
+        Gson gson = new Gson();
+        Item[] items = gson.fromJson(json, Item[].class);
+        return items;
+    }
+
+    /**
+     * Reorders the thumbnails from the saved items.
+     */
+    private void reorder() {
+        reorder(savedItems);
+    }
+
+    /**
+     * Reorders the thumbnails from the given items.
+     * 
+     * @param items
+     */
+    private void reorder(Item[] items) {
+        if(items == null || items.length == 0) {
+            Utils.warnMsg("There are no items for reordering");
+            return;
+        }
+        // Reorder
+        int index = 0;
+        for(Item item : items) {
+            index = 0;
+            // Loop over thumbnails looking for a math of title to name;
+            for(Thumbnail thumbnail : thumbnails) {
+                if(item.title.equals(thumbnail.name)) {
+                    // Move it to the end
+                    // (Should leve unmatched ones at thebeginning)
+                    Collections.rotate(
+                        thumbnails.subList(index, thumbnails.size()), -1);
+                }
+                index++;
+            }
+        }
+        // Reset the indices
+        int i = 0;
+        for(Thumbnail thumbnail : thumbnails) {
+            thumbnail.index = i++;
+        }
+        // System.out.println("After resetting the indices:");
+        // for(Thumbnail thumbnail : thumbnails) {
+        // System.out
+        // .println(" " + thumbnail.name + " (" + thumbnail.index + ")");
+        // }
+        loadThumbnails();
+    }
+
+    /**
+     * Reorders the thumbnails based on the items in the given File.
+     * 
+     * @param jsonFile
+     */
+    private void reorderThumbnails(File jsonFile) {
+        BufferedReader in = null;
+        Item[] items = null;
+        try {
+            in = new BufferedReader(new FileReader(jsonFile));
+            Gson gson = new Gson();
+            items = gson.fromJson(in, Item[].class);
+        } catch(FileNotFoundException ex) {
+            Utils.excMsg("Could not parse " + jsonFile.getPath(), ex);
+            return;
+        } finally {
+            try {
+                if(in != null) in.close();
+            } catch(Exception ex) {
+                // Do nothing
+            }
+        }
+        reorder(items);
+    }
+
+    /**
+     * Prompts for a file of items to use in reordering the thumbnails. Calls
+     * reorder(File) to do the reordering if not cancelled.
+     */
+    private void resetFromJson() {
+        // Prompt for file
+        JFileChooser chooser = new JFileChooser();
+        FileNameExtensionFilter filter = new FileNameExtensionFilter("JSON",
+            "json");
+        chooser.setFileFilter(filter);
+        chooser.setDialogTitle("Open JSON");
+        if(currentDir != null) {
+            File file = new File(currentDir);
+            if(file != null && file.exists()) {
+                chooser.setCurrentDirectory(file);
+            }
+        }
+        int result = chooser.showOpenDialog(this);
+        if(result == JFileChooser.APPROVE_OPTION) {
+            File file = chooser.getSelectedFile();
+            // Save the selected path for next time
+            currentDir = chooser.getSelectedFile().getParentFile().getPath();
+            reorderThumbnails(file);
+        }
+    }
+
+    private void writeJson() {
+        System.out.println();
+        System.out.println("JSON items for PhotoSwipe:");
+        String json = getJsonForItems();
+        System.out.println("var items =" + LS + json);
+        // Prompt to save
+        JFileChooser chooser = new JFileChooser();
+        FileNameExtensionFilter filter = new FileNameExtensionFilter("JSON",
+            "json");
+        chooser.setFileFilter(filter);
+        chooser.setDialogTitle("Save JSON");
+        if(currentDir != null) {
+            File file = new File(currentDir);
+            if(file != null && file.exists()) {
+                chooser.setCurrentDirectory(file);
+            }
+        }
+        chooser.setSelectedFile(
+            new File("Items-" + fileFormatter.format(new Date()) + ".json"));
+        int result = chooser.showOpenDialog(this);
+        if(result == JFileChooser.APPROVE_OPTION) {
+            File file = chooser.getSelectedFile();
+            // Save the selected path for next time
+            currentDir = chooser.getSelectedFile().getParentFile().getPath();
+            PrintWriter out = null;
+            try {
+                out = new PrintWriter(new FileWriter(file));
+                out.write(json);
+                out.close();
+                System.out.println();
+                System.out.println("Wrote " + file.getPath());
+            } catch(Exception ex) {
+                Utils.excMsg("Error writing " + file.getPath(), ex);
+            } finally {
+                if(out != null) out.close();
+            }
+        }
+    }
+
+    /**
+     * Reads the DEFAULT_DIR directory and makes thumbnails. If there is no
+     * thumbnail file yet, it makes those.<br>
+     * <br>
+     * 
+     * Image types may be any of the IMAGE_FILE_EXTENSIONS. Thumbnails are .jpg.
+     */
+    private void makeThumbnails() {
         thumbnails.clear();
+        List<Item> itemsList = new ArrayList<Item>();
         File dir = new File(DEFAULT_DIR);
         File[] files = dir.listFiles();
         BufferedImage bi, biScaled;
@@ -377,6 +562,7 @@ public class PhotoSwipeGallery extends JFrame
                     if(DO_NOT_OVERWRITE) {
                         System.out.println("   Already exists, not converted");
                         thumbnail = new Thumbnail(index, fileOut);
+                        thumbnail.name = fileNameNoExt;
                         item = new Item();
                         item.src = new File(DEFAULT_PARENT_DIR).toURI()
                             .relativize(file.toURI()).getPath();
@@ -384,6 +570,7 @@ public class PhotoSwipeGallery extends JFrame
                         item.w = bi.getWidth();
                         item.title = fileNameNoExt;
                         thumbnail.item = item;
+                        itemsList.add(item);
                         thumbnails.add(thumbnail);
                         continue;
                     }
@@ -395,6 +582,7 @@ public class PhotoSwipeGallery extends JFrame
                 }
                 ImageIO.write(biScaled, imageType, fileOut);
                 thumbnail = new Thumbnail(index, fileOut);
+                thumbnail.name = fileNameNoExt;
                 item = new Item();
                 item.src = new File(DEFAULT_PARENT_DIR).toURI()
                     .relativize(file.toURI()).getPath();
@@ -402,16 +590,19 @@ public class PhotoSwipeGallery extends JFrame
                 item.w = bi.getWidth();
                 item.title = fileNameNoExt;
                 thumbnail.item = item;
+                itemsList.add(item);
                 thumbnails.add(thumbnail);
                 System.out.println("   Converted to " + fileOut.getPath());
                 System.out.println(
                     "     " + bi.getWidth() + "x" + bi.getHeight() + "->"
                         + biScaled.getWidth() + "x" + biScaled.getHeight());
             } catch(IOException ex) {
-                ex.printStackTrace();
+                Utils.excMsg("Error making thumbnails", ex);
                 return;
             }
         }
+        savedItems = new Item[itemsList.size()];
+        savedItems = itemsList.toArray(savedItems);
     }
 
     private void reconfigure(int index1, int index2) {
@@ -533,10 +724,6 @@ public class PhotoSwipeGallery extends JFrame
             this.index = index;
             this.name = file.getName();
             String ext = Utils.getExtension(file);
-            if(ext != null) {
-                name = file.getName().substring(0,
-                    name.length() - ext.length());
-            }
             try {
                 BufferedImage bi = ImageIO.read(file);
                 int w = (int)Math

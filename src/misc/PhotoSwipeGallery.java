@@ -1,9 +1,12 @@
 package misc;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -127,6 +130,8 @@ public class PhotoSwipeGallery extends JFrame
 
         scrollPane = new JScrollPane(mainPanel);
         scrollPane.setPreferredSize(new Dimension(WIDTH, HEIGHT));
+        // Scrollbars don't work with NORTH
+        // Gets centered as size increases with CENTER (not that bad)
         this.add(scrollPane, BorderLayout.CENTER);
 
         // mainPanel.setBackground(Color.RED);
@@ -561,8 +566,7 @@ public class PhotoSwipeGallery extends JFrame
                 if(fileOut.exists()) {
                     if(DO_NOT_OVERWRITE) {
                         System.out.println("   Already exists, not converted");
-                        thumbnail = new Thumbnail(index, fileOut);
-                        thumbnail.name = fileNameNoExt;
+                        thumbnail = new Thumbnail(index, fileOut, fileNameNoExt);
                         item = new Item();
                         item.src = new File(DEFAULT_PARENT_DIR).toURI()
                             .relativize(file.toURI()).getPath();
@@ -581,8 +585,7 @@ public class PhotoSwipeGallery extends JFrame
                     if(res != JOptionPane.OK_OPTION) continue;
                 }
                 ImageIO.write(biScaled, imageType, fileOut);
-                thumbnail = new Thumbnail(index, fileOut);
-                thumbnail.name = fileNameNoExt;
+                thumbnail = new Thumbnail(index, fileOut, fileNameNoExt);
                 item = new Item();
                 item.src = new File(DEFAULT_PARENT_DIR).toURI()
                     .relativize(file.toURI()).getPath();
@@ -719,10 +722,12 @@ public class PhotoSwipeGallery extends JFrame
         private String name;
         private Icon icon;
         private Item item;
+        
+        private static final int TEXT_HEIGHT = 10;
 
-        public Thumbnail(int index, File file) {
+        public Thumbnail(int index, File file, String name) {
             this.index = index;
-            this.name = file.getName();
+            this.name = name;
             String ext = Utils.getExtension(file);
             try {
                 BufferedImage bi = ImageIO.read(file);
@@ -732,6 +737,8 @@ public class PhotoSwipeGallery extends JFrame
                     .round(THUMBNAIL_RESIZE_FACTOR * bi.getHeight());
                 // Rescale it;
                 BufferedImage biScaled = resizeImage(bi, w, h);
+                // WHITE or BLACK works
+                drawTextOnImage(biScaled, name, Color.WHITE);
                 icon = new ImageIcon(biScaled);
             } catch(IOException ex) {
                 Utils.excMsg("Failed to get thumbnail image for " + index, ex);
@@ -756,6 +763,26 @@ public class PhotoSwipeGallery extends JFrame
             g2d.drawImage(bi, 0, 0, w, h, null);
             g2d.dispose();
             return biScaled;
+        }
+
+        public static void drawTextOnImage(BufferedImage bi, String text,
+            Color color) {
+        
+            Graphics2D g = bi.createGraphics();
+            g.setColor(color);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
+                RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setFont(new Font("default", Font.BOLD, 10));
+     
+            int totalWidth = bi.getWidth();
+            int y = TEXT_HEIGHT/2;
+            String[] words = text.split("\\s");
+            for(int i = 0; i < words.length; i++){
+                int textWidth = g.getFontMetrics().stringWidth(words[i]);
+                int x = (totalWidth - textWidth)/2;
+                g.drawString(words[i], x, y += TEXT_HEIGHT);
+            }
+            g.dispose();
         }
     }
 }

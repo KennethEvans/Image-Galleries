@@ -75,11 +75,11 @@ public class PhotoSwipeGallery extends JFrame
     private static final int RESCALE_SIZE = 200;
     private static double THUMBNAIL_RESIZE_FACTOR = .4;
 
-    private static boolean USE_WEB_SITE = false;
+    private static boolean USE_WEB_SITE = true;
 
     /** Directory from which the script is being run. */
     private static final String DEFAULT_PARENT_DIR = USE_WEB_SITE
-        ? "C:/Users/evans/Documents/Web Pages/kenevans.net/Digital Art"
+        ? "C:/Users/evans/Documents/Web Pages/kenevans.net/DigitalArt"
         : "C:/Scratch/AAA/Image Gallery Test/Test Site/gallery";
 
     /** Directory where the images are. */
@@ -395,32 +395,62 @@ public class PhotoSwipeGallery extends JFrame
             Utils.warnMsg("There are no items for reordering");
             return;
         }
-        // Reorder
-        int index = 0;
-        for(Item item : items) {
-            index = 0;
-            // Loop over thumbnails looking for a math of title to name;
-            for(Thumbnail thumbnail : thumbnails) {
-                if(item.title.equals(thumbnail.name)) {
-                    // Move it to the end
-                    // (Should leve unmatched ones at thebeginning)
-                    Collections.rotate(
-                        thumbnails.subList(index, thumbnails.size()), -1);
+        int indexI = 0;
+        int indexT = 0;
+        try {
+            // Reorder
+            for(Item item : items) {
+                indexT = 0;
+                if(item == null) {
+                    Utils.errMsg("null item at indexI=" + indexI + " of "
+                        + items.length + " items" + LS
+                        + "(Check there is no comma after the last JSON element)");
+                    continue;
                 }
-                index++;
+                // Loop over thumbnails looking for a match of title to name;
+                for(Thumbnail thumbnail : thumbnails) {
+                    if(item.title == null) {
+                        Utils.errMsg("item.title = null for index=" + indexT);
+                        indexT++;
+                        continue;
+                    }
+                    if(thumbnail.name == null) {
+                        Utils.errMsg(
+                            "thumbnail.name = null for index=" + indexT);
+                        indexT++;
+                        continue;
+                    }
+                    if(item.title.equals(thumbnail.name)) {
+                        // Move it to the end
+                        // (Should leave unmatched ones at the beginning)
+                        Collections.rotate(
+                            thumbnails.subList(indexT, thumbnails.size()), -1);
+                    }
+                    indexT++;
+                }
+                indexI++;
             }
+            // Reset the indices
+            int i = 0;
+            for(Thumbnail thumbnail : thumbnails) {
+                thumbnail.index = i++;
+            }
+        } catch(Exception ex) {
+            Utils.excMsg("Error processing reorder at indexI=" + indexI
+                + " indexT=" + indexT, ex);
+            return;
         }
-        // Reset the indices
-        int i = 0;
-        for(Thumbnail thumbnail : thumbnails) {
-            thumbnail.index = i++;
+        try {
+            // System.out.println("After resetting the indices:");
+            // for(Thumbnail thumbnail : thumbnails) {
+            // System.out
+            // .println(" " + thumbnail.name + " (" + thumbnail.index + ")");
+            // }
+            loadThumbnails();
+        } catch(Exception ex) {
+            Utils.excMsg("Error loading thumbnails", ex);
+            return;
         }
-        // System.out.println("After resetting the indices:");
-        // for(Thumbnail thumbnail : thumbnails) {
-        // System.out
-        // .println(" " + thumbnail.name + " (" + thumbnail.index + ")");
-        // }
-        loadThumbnails();
     }
 
     /**
@@ -493,7 +523,7 @@ public class PhotoSwipeGallery extends JFrame
         }
         chooser.setSelectedFile(
             new File("Items-" + fileFormatter.format(new Date()) + ".json"));
-        int result = chooser.showOpenDialog(this);
+        int result = chooser.showSaveDialog(this);
         if(result == JFileChooser.APPROVE_OPTION) {
             File file = chooser.getSelectedFile();
             // Save the selected path for next time
@@ -524,6 +554,10 @@ public class PhotoSwipeGallery extends JFrame
         thumbnails.clear();
         List<Item> itemsList = new ArrayList<Item>();
         File dir = new File(DEFAULT_DIR);
+        if(!dir.exists()) {
+            Utils.errMsg("Does not exist " + dir.getPath());
+            return;
+        }
         File[] files = dir.listFiles();
         BufferedImage bi, biScaled;
         String fileNameNoExt, fileNameOut;
@@ -566,7 +600,8 @@ public class PhotoSwipeGallery extends JFrame
                 if(fileOut.exists()) {
                     if(DO_NOT_OVERWRITE) {
                         System.out.println("   Already exists, not converted");
-                        thumbnail = new Thumbnail(index, fileOut, fileNameNoExt);
+                        thumbnail = new Thumbnail(index, fileOut,
+                            fileNameNoExt);
                         item = new Item();
                         item.src = new File(DEFAULT_PARENT_DIR).toURI()
                             .relativize(file.toURI()).getPath();
@@ -722,7 +757,7 @@ public class PhotoSwipeGallery extends JFrame
         private String name;
         private Icon icon;
         private Item item;
-        
+
         private static final int TEXT_HEIGHT = 10;
 
         public Thumbnail(int index, File file, String name) {
@@ -767,19 +802,19 @@ public class PhotoSwipeGallery extends JFrame
 
         public static void drawTextOnImage(BufferedImage bi, String text,
             Color color) {
-        
+
             Graphics2D g = bi.createGraphics();
             g.setColor(color);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                 RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g.setFont(new Font("default", Font.BOLD, 10));
-     
+
             int totalWidth = bi.getWidth();
-            int y = TEXT_HEIGHT/2;
+            int y = TEXT_HEIGHT / 2;
             String[] words = text.split("\\s");
-            for(int i = 0; i < words.length; i++){
+            for(int i = 0; i < words.length; i++) {
                 int textWidth = g.getFontMetrics().stringWidth(words[i]);
-                int x = (totalWidth - textWidth)/2;
+                int x = (totalWidth - textWidth) / 2;
                 g.drawString(words[i], x, y += TEXT_HEIGHT);
             }
             g.dispose();

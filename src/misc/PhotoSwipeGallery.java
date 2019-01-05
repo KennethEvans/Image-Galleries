@@ -6,7 +6,6 @@ import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -15,6 +14,7 @@ import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
@@ -43,6 +43,7 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.JTextField;
@@ -75,7 +76,7 @@ public class PhotoSwipeGallery extends JFrame
     private static final int RESCALE_SIZE = 200;
     private static double THUMBNAIL_RESIZE_FACTOR = .4;
 
-    private static boolean USE_WEB_SITE = true;
+    private static boolean USE_WEB_SITE = false;
 
     /** Directory from which the script is being run. */
     private static final String DEFAULT_PARENT_DIR = USE_WEB_SITE
@@ -89,7 +90,7 @@ public class PhotoSwipeGallery extends JFrame
     private static final int HEIGHT = 200;
     private static final int NCOLS = 4;
     private static final String TITLE = "PhotoSwipe Gallery";
-    private static List<Thumbnail> thumbnails = new ArrayList<Thumbnail>();
+    private static List<Thumbnail> thumbnails = new ArrayList<>();
     private static String currentDir = DEFAULT_PARENT_DIR;
     public static final SimpleDateFormat fileFormatter = new SimpleDateFormat(
         "yyyy-MM-dd-hh-mm");
@@ -100,8 +101,9 @@ public class PhotoSwipeGallery extends JFrame
     private JPanel mainPanel;
     private JMenuBar menuBar;
     private JScrollPane scrollPane;
-
-    private Item[] savedItems;
+    private JPopupMenu popup;
+    private Component popupComponent;
+    private List<Thumbnail> savedThumbnails;
 
     /**
      * PhotoSwipeGallery constructor.
@@ -166,12 +168,12 @@ public class PhotoSwipeGallery extends JFrame
         // JSeparator separator = new JSeparator();
         // menu.add(separator);
 
-        // Reset Order
+        // Reset thumbnails
         menuItem = new JMenuItem();
-        menuItem.setText("Reset Order");
+        menuItem.setText("Reset Thumbnails");
         menuItem.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ae) {
-                reorder();
+                resetThumbnails();
             }
         });
         menu.add(menuItem);
@@ -188,10 +190,10 @@ public class PhotoSwipeGallery extends JFrame
 
         // Set items from JSON
         menuItem = new JMenuItem();
-        menuItem.setText("Reset Items from JSON File...");
+        menuItem.setText("Reorder Thumbnails using JSON Items File...");
         menuItem.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent ae) {
-                resetFromJson();
+                reorderThumbnails();
             }
         });
         menu.add(menuItem);
@@ -238,6 +240,65 @@ public class PhotoSwipeGallery extends JFrame
         // }
         // });
         // menu.add(menuItem);
+
+        // Popup
+        popup = new JPopupMenu();
+        // ActionListener menuListener = new ActionListener() {
+        // public void actionPerformed(ActionEvent event) {
+        // System.out.println("Popup menu item ["
+        // + event.getActionCommand() + "] was pressed.");
+        // }
+        // };
+        JMenuItem item;
+        popup.add(item = new JMenuItem("Delete"));
+        item.setHorizontalTextPosition(JMenuItem.RIGHT);
+        item.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent ev) {
+                if(popupComponent != null
+                    && popupComponent instanceof DataButton) {
+                    DataButton button = (DataButton)popupComponent;
+                    deleteThumbnail(button.index);
+                }
+                popupComponent = null;
+            }
+        });
+    }
+
+    /**
+     * MousePopupListener
+     * 
+     * @author Kenneth Evans, Jr.
+     */
+    class MousePopupListener extends MouseAdapter
+    {
+        public void mousePressed(MouseEvent ev) {
+            checkPopup(ev);
+        }
+
+        public void mouseClicked(MouseEvent ev) {
+            checkPopup(ev);
+        }
+
+        public void mouseReleased(MouseEvent ev) {
+            checkPopup(ev);
+        }
+
+        private void checkPopup(MouseEvent ev) {
+            if(ev.isPopupTrigger()) {
+                Component component = ev.getComponent();
+                if(component instanceof DataButton) {
+                    popupComponent = null;
+                    DataButton button = (DataButton)ev.getComponent();
+                    try {
+                        popup.show(button, ev.getX(), ev.getY());
+                        // Keep track of where the menu was clicked
+                        popupComponent = component;
+                    } catch(Exception ex) {
+                        // Do nothing
+                    }
+                }
+            }
+        }
     }
 
     @Override
@@ -364,7 +425,7 @@ public class PhotoSwipeGallery extends JFrame
     }
 
     private static String getJsonForItems() {
-        List<Item> items = new ArrayList<Item>();
+        List<Item> items = new ArrayList<>();
         for(Thumbnail thumbnail : thumbnails) {
             items.add(thumbnail.item);
         }
@@ -372,17 +433,28 @@ public class PhotoSwipeGallery extends JFrame
         return gson.toJson(items);
     }
 
-    private static Item[] getItemsFromJson(String json) {
+    // Not used, public to avoid warnings
+    public static Item[] getItemsFromJson(String json) {
         Gson gson = new Gson();
         Item[] items = gson.fromJson(json, Item[].class);
         return items;
     }
 
     /**
-     * Reorders the thumbnails from the saved items.
+     * Resets the thumbnails to the saved thumbnails.
      */
-    private void reorder() {
-        reorder(savedItems);
+    private void resetThumbnails() {
+        ArrayList<Thumbnail> newThumbnails = new ArrayList<>();
+        for(Thumbnail thumbnail : savedThumbnails) {
+            try {
+                newThumbnails.add(thumbnail.clone());
+            } catch(CloneNotSupportedException ex) {
+                Utils.excMsg("Unable to clone thumbnail " + thumbnail.index,
+                    ex);
+            }
+        }
+        thumbnails = newThumbnails;
+        loadThumbnails();
     }
 
     /**
@@ -390,7 +462,7 @@ public class PhotoSwipeGallery extends JFrame
      * 
      * @param items
      */
-    private void reorder(Item[] items) {
+    private void reorderThumbnailsFromItems(Item[] items) {
         if(items == null || items.length == 0) {
             Utils.warnMsg("There are no items for reordering");
             return;
@@ -458,7 +530,7 @@ public class PhotoSwipeGallery extends JFrame
      * 
      * @param jsonFile
      */
-    private void reorderThumbnails(File jsonFile) {
+    private void reorderThumbnailsFromJasonFile(File jsonFile) {
         BufferedReader in = null;
         Item[] items = null;
         try {
@@ -475,14 +547,16 @@ public class PhotoSwipeGallery extends JFrame
                 // Do nothing
             }
         }
-        reorder(items);
+        reorderThumbnailsFromItems(items);
     }
 
     /**
      * Prompts for a file of items to use in reordering the thumbnails. Calls
-     * reorder(File) to do the reordering if not cancelled.
+     * reorderThumbnailsFromJasonFile to do the reordering if not cancelled.
+     * 
+     * @see #reorderThumbnailsFromJasonFile(File)
      */
-    private void resetFromJson() {
+    private void reorderThumbnails() {
         // Prompt for file
         JFileChooser chooser = new JFileChooser();
         FileNameExtensionFilter filter = new FileNameExtensionFilter("JSON",
@@ -500,7 +574,7 @@ public class PhotoSwipeGallery extends JFrame
             File file = chooser.getSelectedFile();
             // Save the selected path for next time
             currentDir = chooser.getSelectedFile().getParentFile().getPath();
-            reorderThumbnails(file);
+            reorderThumbnailsFromJasonFile(file);
         }
     }
 
@@ -543,6 +617,18 @@ public class PhotoSwipeGallery extends JFrame
         }
     }
 
+    private void deleteThumbnail(int index) {
+        if(index >= 0 && index < thumbnails.size()) {
+            thumbnails.remove(index);
+            // Reset the indices
+            int i = 0;
+            for(Thumbnail thumbnail : thumbnails) {
+                thumbnail.index = i++;
+            }
+            loadThumbnails();
+        }
+    }
+
     /**
      * Reads the DEFAULT_DIR directory and makes thumbnails. If there is no
      * thumbnail file yet, it makes those.<br>
@@ -552,7 +638,7 @@ public class PhotoSwipeGallery extends JFrame
      */
     private void makeThumbnails() {
         thumbnails.clear();
-        List<Item> itemsList = new ArrayList<Item>();
+        List<Item> itemsList = new ArrayList<>();
         File dir = new File(DEFAULT_DIR);
         if(!dir.exists()) {
             Utils.errMsg("Does not exist " + dir.getPath());
@@ -639,8 +725,17 @@ public class PhotoSwipeGallery extends JFrame
                 return;
             }
         }
-        savedItems = new Item[itemsList.size()];
-        savedItems = itemsList.toArray(savedItems);
+        savedThumbnails = new ArrayList<>();
+        for(Thumbnail thumbnail1 : thumbnails) {
+            Thumbnail clone;
+            try {
+                clone = (Thumbnail)thumbnail1.clone();
+                savedThumbnails.add(clone);
+            } catch(CloneNotSupportedException ex) {
+                Utils.excMsg("Unable to clone thumbnail " + thumbnail1.index,
+                    ex);
+            }
+        }
     }
 
     private void reconfigure(int index1, int index2) {
@@ -694,6 +789,7 @@ public class PhotoSwipeGallery extends JFrame
             button.setMargin(new Insets(0, 0, 0, 0));
             button.addMouseListener(this);
             button.addMouseMotionListener(this);
+            button.addMouseListener(new MousePopupListener());
             gbc = (GridBagConstraints)gbcDefault.clone();
             gbc = (GridBagConstraints)gbcDefault.clone();
             gbc.gridx = col;
@@ -732,7 +828,8 @@ public class PhotoSwipeGallery extends JFrame
         });
     }
 
-    private static class Item
+    // Not used, public to avoid warnings
+    public static class Item
     {
         String src;
         int w;
@@ -751,7 +848,7 @@ public class PhotoSwipeGallery extends JFrame
         }
     }
 
-    private static class Thumbnail
+    private static class Thumbnail implements Cloneable
     {
         private int index;
         private String name;
@@ -763,7 +860,6 @@ public class PhotoSwipeGallery extends JFrame
         public Thumbnail(int index, File file, String name) {
             this.index = index;
             this.name = name;
-            String ext = Utils.getExtension(file);
             try {
                 BufferedImage bi = ImageIO.read(file);
                 int w = (int)Math
@@ -818,6 +914,15 @@ public class PhotoSwipeGallery extends JFrame
                 g.drawString(words[i], x, y += TEXT_HEIGHT);
             }
             g.dispose();
+        }
+
+        /*
+         * (non-Javadoc)
+         * 
+         * @see java.lang.Object#clone()
+         */
+        public Thumbnail clone() throws CloneNotSupportedException {
+            return (Thumbnail)super.clone();
         }
     }
 }

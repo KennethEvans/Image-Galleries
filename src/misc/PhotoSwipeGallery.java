@@ -469,10 +469,14 @@ public class PhotoSwipeGallery extends JFrame
         }
         int indexI = 0;
         int indexT = 0;
+        String info = "Not found in thumbnails:" + LS;
+        int nUnfound = 0;
+        boolean found = false;
         try {
             // Reorder
             for(Item item : items) {
                 indexT = 0;
+                found = false;
                 if(item == null) {
                     Utils.errMsg("null item at indexI=" + indexI + " of "
                         + items.length + " items" + LS
@@ -493,6 +497,7 @@ public class PhotoSwipeGallery extends JFrame
                         continue;
                     }
                     if(item.title.equals(thumbnail.name)) {
+                        found = true;
                         // Move it to the end
                         // (Should leave unmatched ones at the beginning)
                         Collections.rotate(
@@ -500,12 +505,25 @@ public class PhotoSwipeGallery extends JFrame
                     }
                     indexT++;
                 }
+                if(!found) {
+                    nUnfound++;
+                    if(nUnfound <= 5) {
+                        info += (indexI + 1) + " " + item.title + LS;
+                    }                    
+                }
                 indexI++;
             }
             // Reset the indices
             int i = 0;
             for(Thumbnail thumbnail : thumbnails) {
                 thumbnail.index = i++;
+            }
+            // Show the ones not found
+            if(nUnfound > 5) {
+                info += "and " + (nUnfound - 5) + " more...";
+            }
+            if(nUnfound > 0) {
+                Utils.infoMsg(info);
             }
         } catch(Exception ex) {
             Utils.excMsg("Error processing reorder at indexI=" + indexI

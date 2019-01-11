@@ -17,7 +17,8 @@ import org.imgscalr.Scalr;
  */
 
 /**
- * MakeThumbnails makes thumbnails for images in a directory.
+ * MakeThumbnails makes thumbnails for images in a directory. The GUI
+ * application PhotoSwipeGallery now does this and more.
  * 
  * @author Kenneth Evans, Jr.
  */
@@ -31,12 +32,18 @@ public class MakeThumbnails
         + DEFAULT_RESCALE_EXT;
     private static final String[] IMAGE_FILE_EXTENSIONS = new String[] {"jpg",
         "jpeg", "png", "gif"};
+
+    /** Flag for switching from the website to a test directory */
+    private static boolean USE_WEB_SITE = false;
+
     /** Directory from which the script is being run. */
-    private static final String DEFAULT_PARENT_DIR = "C:/Users/evans/Documents/Web Pages/kenevans.net/Digital Art";
-    // private static final String DEFAULT_PARENT_DIR = "C:/Scratch/AAA/Image
-    // Gallery Test/Test Site/gallery";
+    private static final String DEFAULT_PARENT_DIR = USE_WEB_SITE
+        ? "C:/Users/evans/Documents/Web Pages/kenevans.net/DigitalArt"
+        : "C:/Users/evans/Documents/Web Pages/Image Galleries/gallery";
+
     /** Directory where the images are. */
     private static final String DEFAULT_DIR = DEFAULT_PARENT_DIR + "/images";
+
     private static final int RESCALE_SIZE = 200;
 
     private static void makeThumbnails() {

@@ -12,6 +12,13 @@ import javax.swing.UIManager;
  * By Kenneth Evans, Jr.
  */
 
+/**
+ * CopyPhotoTagsToThumbnails runs ExitTool CopyPhototagsNoPause.bat on all
+ * (qualifying) files in a directory to copy EXIF information from the images to
+ * the thumbnails (so the thumbnails will have copyrights).
+ * 
+ * @author Kenneth Evans, Jr.
+ */
 public class CopyPhotoTagsToThumbnails
 {
     public static final String LS = System.getProperty("line.separator");
@@ -22,11 +29,18 @@ public class CopyPhotoTagsToThumbnails
         + DEFAULT_RESCALE_EXT;
     private static final String[] IMAGE_FILE_EXTENSIONS = new String[] {"jpg",
         "jpeg", "png", "gif"};
-    private static final String DEFAULT_PARENT_DIR = "C:/Users/evans/Documents/Web Pages/kenevans.net/Digital Art";
-    // private static final String DEFAULT_PARENT_DIR = "C:/Scratch/AAA/Image
-    // Gallery Test/Test Site/gallery";
+
+    /** Flag for switching from the website to a test directory */
+    private static boolean USE_WEB_SITE = false;
+
+    /** Directory from which the script is being run. */
+    private static final String DEFAULT_PARENT_DIR = USE_WEB_SITE
+        ? "C:/Users/evans/Documents/Web Pages/kenevans.net/DigitalArt"
+        : "C:/Users/evans/Documents/Web Pages/Image Galleries/gallery";
+
     /** Directory where the images are. */
     private static final String DEFAULT_DIR = DEFAULT_PARENT_DIR + "/images";
+
     private static final String PHOTO_TAGS_CMD = "C:/bin/EXIFTool/CopyPhotoTagsNoPause.bat";
     private static int nErrors = 0;
 

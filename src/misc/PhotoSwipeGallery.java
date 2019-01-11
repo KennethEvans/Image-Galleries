@@ -61,27 +61,48 @@ import com.google.gson.GsonBuilder;
  * By Kenneth Evans, Jr.
  */
 
+/**
+ * PhotoSwipeGallery is GUI application that does two main things:
+ * <ul>
+ * <li>Generates thumbnails for images in a directory.</li>
+ * <li>Creates and reads JSON items arrays used by PhotoSwipe</li>
+ * </ul>
+ * The original images are not changed, and existing thumbnails are not modified
+ * by default. Items can be rearranged, and they can be reordered from a JSON
+ * items file. It does not currently copy EXIF information from the images to
+ * the thumbnails.
+ * 
+ * @author Kenneth Evans, Jr.
+ */
 public class PhotoSwipeGallery extends JFrame
     implements MouseListener, MouseMotionListener
 {
     private static final long serialVersionUID = 1L;
     public static final String LS = System.getProperty("line.separator");
+    /** Don't process existing thumbnails. */
     private static final boolean DO_NOT_OVERWRITE = true;
+    /** Thumbnails have this extension. */
     private static final String DEFAULT_RESCALE_EXT = ".jpg";
+    /** Thumbnails have this string before the extension. */
     private static final String DEFAULT_RESCALE_SUFFIX = "_M";
+    /** Thumbnails have this string at the end of the filename. */
     private static final String RESCALE_SUFFIX = DEFAULT_RESCALE_SUFFIX
         + DEFAULT_RESCALE_EXT;
+    /** Image file extensions allowed. */
     private static final String[] IMAGE_FILE_EXTENSIONS = new String[] {"jpg",
         "jpeg", "png", "gif"};
+    /** Thumbnails a long edge of this size. */
     private static final int RESCALE_SIZE = 200;
+    /** Size factor for thumbnails in the GUI compared to thumbnail images. */
     private static double THUMBNAIL_RESIZE_FACTOR = .4;
 
+    /** Flag for switching from the website to a test directory */
     private static boolean USE_WEB_SITE = false;
 
     /** Directory from which the script is being run. */
     private static final String DEFAULT_PARENT_DIR = USE_WEB_SITE
         ? "C:/Users/evans/Documents/Web Pages/kenevans.net/DigitalArt"
-        : "C:/Scratch/AAA/Image Gallery Test/Test Site/gallery";
+        : "C:/Users/evans/Documents/Web Pages/Image Galleries/gallery";
 
     /** Directory where the images are. */
     private static final String DEFAULT_DIR = DEFAULT_PARENT_DIR + "/images";
@@ -509,7 +530,7 @@ public class PhotoSwipeGallery extends JFrame
                     nUnfound++;
                     if(nUnfound <= 5) {
                         info += (indexI + 1) + " " + item.title + LS;
-                    }                    
+                    }
                 }
                 indexI++;
             }

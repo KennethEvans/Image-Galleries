@@ -97,7 +97,7 @@ public class PhotoSwipeGallery extends JFrame
     private static double THUMBNAIL_RESIZE_FACTOR = .4;
 
     /** Flag for switching from the website to a test directory */
-    private static boolean USE_WEB_SITE = false;
+    private static boolean USE_WEB_SITE = true;
 
     /** Directory from which the script is being run. */
     private static final String DEFAULT_PARENT_DIR = USE_WEB_SITE
